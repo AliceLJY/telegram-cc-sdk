@@ -396,14 +396,29 @@ bot.command("status", async (ctx) => {
   const session = getSession(ctx.chat.id);
   const verbose = verboseSettings.get(ctx.chat.id) ?? DEFAULT_VERBOSE;
   const info = adapter.statusInfo();
+
+  let sessionLine = "当前会话: 无（下条消息开新会话）";
+  let resumeHint = "";
+  if (session) {
+    const sid = session.session_id;
+    sessionLine = `当前会话: \`${sid.slice(0, 8)}...\``;
+    // 终端 resume 命令提示
+    if (session.backend === "codex") {
+      resumeHint = `\n终端接续: \`codex -C ${info.cwd} resume ${sid}\``;
+    } else {
+      resumeHint = `\n终端接续: \`claude --resume ${sid}\``;
+    }
+  }
+
   await ctx.reply(
     `${adapter.icon} 后端: ${adapter.label} (${backendName})\n` +
     `模式: ${info.mode}\n` +
     `模型: ${info.model}\n` +
     `工作目录: ${info.cwd}\n` +
-    `当前会话: ${session ? session.session_id.slice(0, 8) + "..." : "无（下条消息开新会话）"}\n` +
+    `${sessionLine}${resumeHint}\n` +
     `进度详细度: ${verbose}（0=关/1=工具名/2=详细）\n` +
-    `可用后端: ${AVAILABLE_BACKENDS.filter((b) => adapters[b]).join(", ")}`
+    `可用后端: ${AVAILABLE_BACKENDS.filter((b) => adapters[b]).join(", ")}`,
+    { parse_mode: "Markdown" }
   );
 });
 
