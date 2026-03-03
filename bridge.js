@@ -252,6 +252,24 @@ async function submitAndWait(ctx, prompt) {
           capturedSessionId = event.sessionId;
         }
 
+        // AskUserQuestion: 发送完整问题 + inline 按钮
+        if (event.type === "question") {
+          const header = event.header ? `*${event.header}*\n\n` : "";
+          let text = `${header}❓ ${event.question}\n`;
+          const kb = new InlineKeyboard();
+          for (let i = 0; i < event.options.length; i++) {
+            const opt = event.options[i];
+            text += `\n${i + 1}. *${opt.label}*`;
+            if (opt.description) text += `\n   ${opt.description}`;
+            // callback data 限 64 字节，用 ask:序号:简短标签
+            kb.text(`${i + 1}. ${opt.label}`, `ask:${opt.label.slice(0, 50)}`).row();
+          }
+          await ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb }).catch(() => {
+            // Markdown 失败时 fallback 纯文本
+            ctx.reply(text.replace(/\*/g, ""), { reply_markup: kb }).catch(() => {});
+          });
+        }
+
         // 实时进度（progress + text 事件）
         progress.processEvent(event);
 
@@ -492,6 +510,14 @@ bot.callbackQuery("action:new", async (ctx) => {
   await ctx.answerCallbackQuery({ text: "已重置 ✓" });
   const adapter = getAdapter(ctx.chat.id);
   await ctx.editMessageText(`会话已重置，下条消息将开启新 ${adapter.label} 会话。`);
+});
+
+// ── 按钮回调：AskUserQuestion 选项 ──
+bot.callbackQuery(/^ask:/, async (ctx) => {
+  const label = ctx.callbackQuery.data.replace("ask:", "");
+  await ctx.answerCallbackQuery({ text: `选择: ${label}` });
+  await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+  await submitAndWait(ctx, label);
 });
 
 // ── 按钮回调：快捷回复 ──

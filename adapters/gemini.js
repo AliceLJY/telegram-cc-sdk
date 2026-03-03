@@ -3,7 +3,7 @@
 // OAuth token 从 ~/.gemini/oauth_creds.json 读取，自动刷新
 
 import { OAuth2Client } from "google-auth-library";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
 
@@ -266,8 +266,64 @@ export function createAdapter(config = {}) {
       };
     },
 
-    async listSessions() {
-      return null; // Gemini 无本地 session 文件，用 SQLite 历史
+    async listSessions(limit = 10) {
+      // 扫描 Gemini CLI 的本地 session 文件：~/.gemini/tmp/*/chats/session-*.json
+      const geminiTmp = join(process.env.HOME, ".gemini", "tmp");
+      const allFiles = [];
+
+      try {
+        const projectDirs = readdirSync(geminiTmp).filter(d => {
+          try { return statSync(join(geminiTmp, d)).isDirectory(); } catch { return false; }
+        });
+        for (const dir of projectDirs) {
+          const chatsDir = join(geminiTmp, dir, "chats");
+          try {
+            const files = readdirSync(chatsDir)
+              .filter(f => f.startsWith("session-") && f.endsWith(".json"))
+              .map(f => {
+                const fp = join(chatsDir, f);
+                const stat = statSync(fp);
+                return { file: f, path: fp, mtime: stat.mtimeMs, size: stat.size };
+              });
+            allFiles.push(...files);
+          } catch { /* skip */ }
+        }
+      } catch { return null; }
+
+      if (!allFiles.length) return null;
+      allFiles.sort((a, b) => b.mtime - a.mtime);
+      const recent = allFiles.slice(0, limit);
+
+      const results = [];
+      for (const s of recent) {
+        let topic = "";
+        let sessionId = "";
+        try {
+          const data = JSON.parse(readFileSync(s.path, "utf8"));
+          sessionId = data.sessionId || s.file.replace(".json", "");
+          const msgs = data.messages || [];
+          for (const m of msgs) {
+            if (m.type === "user") {
+              const content = m.content;
+              if (Array.isArray(content)) {
+                const txt = content.find(c => typeof c === "object" && c.text);
+                if (txt) topic = txt.text.slice(0, 80);
+              } else if (typeof content === "string") {
+                topic = content.slice(0, 80);
+              }
+              if (topic) break;
+            }
+          }
+        } catch { /* skip */ }
+
+        results.push({
+          session_id: sessionId || s.file.replace(".json", ""),
+          display_name: topic || "(空)",
+          last_active: s.mtime,
+          backend: "gemini",
+        });
+      }
+      return results;
     },
   };
 }

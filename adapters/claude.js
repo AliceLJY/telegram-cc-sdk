@@ -46,6 +46,21 @@ export function createAdapter(config = {}) {
         if (msg.type === "assistant" && msg.message?.content) {
           for (const block of msg.message.content) {
             if (block.type === "tool_use") {
+              // AskUserQuestion: 提取完整问题+选项
+              if (block.name === "AskUserQuestion" && block.input?.questions) {
+                for (const q of block.input.questions) {
+                  yield {
+                    type: "question",
+                    question: q.question || "",
+                    header: q.header || "",
+                    options: (q.options || []).map(o => ({
+                      label: o.label,
+                      description: o.description || "",
+                    })),
+                    multiSelect: q.multiSelect || false,
+                  };
+                }
+              }
               yield {
                 type: "progress",
                 toolName: block.name,
