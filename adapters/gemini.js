@@ -265,6 +265,10 @@ export function createAdapter(config = {}) {
         mode: "Code Assist OAuth (Pro)",
       };
     },
+
+    async listSessions() {
+      return null; // Gemini 无本地 session 文件，用 SQLite 历史
+    },
   };
 }
 

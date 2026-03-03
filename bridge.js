@@ -355,10 +355,19 @@ bot.command("new", async (ctx) => {
   await ctx.reply(`会话已重置，下条消息将开启新 ${adapter.label} 会话。`);
 });
 
-// ── /sessions 命令：从 SQLite 读取历史会话 ──
+// ── /sessions 命令：优先从本地 session 文件扫描，兜底 SQLite 历史 ──
 bot.command("sessions", async (ctx) => {
   try {
-    const sessions = recentSessions(8);
+    const adapter = getAdapter(ctx.chat.id);
+    const backendName = getBackendName(ctx.chat.id);
+
+    // 优先用 adapter 扫描本地 session 文件（如 CC transcript / Codex sessions）
+    let sessions = adapter.listSessions ? await adapter.listSessions(10) : null;
+    // 兜底：SQLite 历史
+    if (!sessions || !sessions.length) {
+      sessions = recentSessions(10);
+    }
+
     if (!sessions.length) {
       await ctx.reply("没有找到历史会话。");
       return;
@@ -366,11 +375,12 @@ bot.command("sessions", async (ctx) => {
     const current = getSession(ctx.chat.id);
     const kb = new InlineKeyboard();
     for (const s of sessions) {
-      const backendIcon = s.backend === "codex" ? "🟢" : "🟣";
+      const backend = s.backend || backendName;
+      const icon = backend === "codex" ? "🟢" : backend === "gemini" ? "🔵" : "🟣";
       const mark = (current && current.session_id === s.session_id) ? " ✦当前" : "";
       const time = new Date(s.last_active).toISOString().slice(5, 16).replace("T", " ");
       const topic = (s.display_name || "").slice(0, 25) || "(空)";
-      kb.text(`${backendIcon} ${time} ${topic}${mark}`, `resume:${s.session_id}:${s.backend || "claude"}`).row();
+      kb.text(`${icon} ${time} ${topic}${mark}`, `resume:${s.session_id}:${backend}`).row();
     }
     kb.text("🆕 开新会话", "action:new").row();
     await ctx.reply("选择要恢复的会话：", { reply_markup: kb });

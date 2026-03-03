@@ -1,5 +1,8 @@
 // Claude Agent SDK 适配器
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { readdirSync, statSync, createReadStream } from "fs";
+import { join } from "path";
+import { createInterface } from "readline";
 
 export function createAdapter(config = {}) {
   const model = config.model || process.env.CC_MODEL || "claude-sonnet-4-6";
@@ -69,6 +72,68 @@ export function createAdapter(config = {}) {
 
     statusInfo() {
       return { model, cwd, mode: "Agent SDK direct" };
+    },
+
+    async listSessions(limit = 10) {
+      const projectsDir = join(process.env.HOME, ".claude", "projects");
+      const allFiles = [];
+
+      try {
+        const dirs = readdirSync(projectsDir).filter(d => {
+          try { return statSync(join(projectsDir, d)).isDirectory(); } catch { return false; }
+        });
+        for (const dir of dirs) {
+          const fullDir = join(projectsDir, dir);
+          try {
+            const files = readdirSync(fullDir)
+              .filter(f => f.endsWith(".jsonl"))
+              .map(f => {
+                const fp = join(fullDir, f);
+                const stat = statSync(fp);
+                return { file: f, path: fp, mtime: stat.mtimeMs, size: stat.size };
+              });
+            allFiles.push(...files);
+          } catch { /* skip */ }
+        }
+      } catch { return []; }
+
+      allFiles.sort((a, b) => b.mtime - a.mtime);
+      const recent = allFiles.slice(0, limit);
+
+      const results = [];
+      for (const s of recent) {
+        let topic = "";
+        try {
+          const stream = createReadStream(s.path, { encoding: "utf8" });
+          const rl = createInterface({ input: stream });
+          for await (const line of rl) {
+            try {
+              const d = JSON.parse(line);
+              if (d.message?.role === "user") {
+                const content = d.message.content;
+                if (Array.isArray(content)) {
+                  const txt = content.find(c => typeof c === "object" && c.type === "text");
+                  if (txt) topic = txt.text.slice(0, 80);
+                } else if (typeof content === "string") {
+                  topic = content.slice(0, 80);
+                }
+                if (topic && !topic.startsWith("[Request interrupted")) break;
+                topic = "";
+              }
+            } catch { /* skip */ }
+          }
+          rl.close();
+          stream.destroy();
+        } catch { /* skip */ }
+
+        results.push({
+          session_id: s.file.replace(".jsonl", ""),
+          display_name: topic || "(空)",
+          last_active: s.mtime,
+          backend: "claude",
+        });
+      }
+      return results;
     },
   };
 }

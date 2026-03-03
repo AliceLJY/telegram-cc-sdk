@@ -2,6 +2,10 @@
 // @openai/codex-sdk — CLI wrapper，sessions 存 ~/.codex/sessions/
 // codex --resume <threadId> 终端可直接接续
 
+import { readdirSync, statSync, createReadStream } from "fs";
+import { join } from "path";
+import { createInterface } from "readline";
+
 let Codex;
 try {
   ({ Codex } = await import("@openai/codex-sdk"));
@@ -119,6 +123,75 @@ export function createAdapter(config = {}) {
         cwd,
         mode: "Codex SDK direct",
       };
+    },
+
+    async listSessions(limit = 10) {
+      // Codex sessions: ~/.codex/sessions/YYYY/MM/DD/rollout-{timestamp}-{uuid}.jsonl
+      const sessionsDir = join(process.env.HOME, ".codex", "sessions");
+      const allFiles = [];
+
+      try {
+        const now = new Date();
+        for (let d = 0; d < 7; d++) {
+          const date = new Date(now - d * 86400000);
+          const yyyy = String(date.getFullYear());
+          const mm = String(date.getMonth() + 1).padStart(2, "0");
+          const dd = String(date.getDate()).padStart(2, "0");
+          const dayDir = join(sessionsDir, yyyy, mm, dd);
+
+          try {
+            const files = readdirSync(dayDir)
+              .filter(f => f.endsWith(".jsonl"))
+              .map(f => {
+                const fp = join(dayDir, f);
+                const stat = statSync(fp);
+                const uuidMatch = f.match(/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.jsonl$/i);
+                const sessionId = uuidMatch ? uuidMatch[1] : f.replace(".jsonl", "");
+                return { file: f, path: fp, mtime: stat.mtimeMs, size: stat.size, sessionId };
+              });
+            allFiles.push(...files);
+          } catch { /* day dir not found */ }
+        }
+      } catch { return []; }
+
+      allFiles.sort((a, b) => b.mtime - a.mtime);
+      const recent = allFiles.slice(0, limit);
+
+      const results = [];
+      for (const s of recent) {
+        let topic = "";
+        try {
+          const stream = createReadStream(s.path, { encoding: "utf8" });
+          const rl = createInterface({ input: stream });
+          for await (const line of rl) {
+            try {
+              const d = JSON.parse(line);
+              if (d.type === "event_msg" && d.payload?.type === "user_message") {
+                const msg = String(d.payload.message || "").trim();
+                if (!msg || /^\/[a-z]/i.test(msg)) continue;
+                topic = msg.slice(0, 80);
+                break;
+              }
+              // 兼容 role: user 格式
+              if (d.message?.role === "user") {
+                const content = d.message.content;
+                if (typeof content === "string") topic = content.slice(0, 80);
+                if (topic) break;
+              }
+            } catch { /* skip */ }
+          }
+          rl.close();
+          stream.destroy();
+        } catch { /* skip */ }
+
+        results.push({
+          session_id: s.sessionId,
+          display_name: topic || "(空)",
+          last_active: s.mtime,
+          backend: "codex",
+        });
+      }
+      return results;
     },
   };
 }
