@@ -1,0 +1,15 @@
+{
+  "name": "telegram-cc-sdk",
+  "version": "1.0.0",
+  "description": "Telegram → Claude Code bridge via Agent SDK (direct, no task-api)",
+  "type": "module",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "bun bridge.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.63",
+    "grammy": "^1.40.0",
+    "https-proxy-agent": "^7.0.6"
+  }
+}
