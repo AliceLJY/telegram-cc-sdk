@@ -1,16 +1,12 @@
 # telegram-cc-sdk
 
-> Telegram → Claude Code bridge via Agent SDK (direct connection, no task-api middleware)
+Telegram → Claude Code bridge via Agent SDK — direct connection, no task-api middleware.
 
-> Telegram 直连 Claude Code 桥（Agent SDK 直连，无 task-api 中间层）
+> Telegram 直连 Claude Code 桥 — Agent SDK 直连，去掉 task-api 中间层，延迟更低、实时进度、会话持久化。
 
-Replaces the task-api relay in [telegram-cli-bridge](https://github.com/AliceLJY/telegram-cli-bridge) with a direct Agent SDK connection for lower latency, real-time progress, and persistent sessions.
-
-> 从 [telegram-cli-bridge](https://github.com/AliceLJY/telegram-cli-bridge) 拆分出来，用 Agent SDK 直连替代 task-api 中转层，延迟更低、实时进度、会话持久化。Codex/Gemini 桥留在原仓库。
+Replaces the task-api relay in [telegram-cli-bridge](https://github.com/AliceLJY/telegram-cli-bridge) with a direct [Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk) connection. Codex and Gemini bridges remain in the original repo.
 
 ## Features
-
-> 功能特性
 
 - **Agent SDK direct** — no task-api middleware, lower latency
 - **SQLite sessions** — survive bridge restarts (bun:sqlite, WAL mode)
@@ -22,11 +18,9 @@ Replaces the task-api relay in [telegram-cli-bridge](https://github.com/AliceLJY
 - **Quick replies** — inline buttons for yes/no questions
 - **File handling** — photos, documents, voice messages
 
-> Agent SDK 直连、SQLite 会话持久化、实时进度显示（工具图标）、进度详细度三级、会话列表恢复、终端互通、群聊上下文、快捷按钮、文件/图片/语音。
+> 直连、持久化会话、实时进度（工具图标）、verbose 三级、会话恢复、终端互通、群聊上下文、快捷按钮、文件支持。
 
 ## Architecture
-
-> 架构图
 
 ```
                      ┌─ telegram-cc-sdk (this repo)
@@ -45,17 +39,11 @@ Telegram ←→ grammy Bot ←→ Agent SDK query() ←→ Claude Code
 
 ## Prerequisites
 
-> 前置条件
-
 - [Bun](https://bun.sh) runtime (bun:sqlite used for session persistence)
 - Claude Code CLI installed (`claude` command available)
 - Telegram Bot token (from [@BotFather](https://t.me/BotFather))
 
-> 需要 Bun 运行时（用 bun:sqlite 做会话持久化）、Claude Code CLI、Telegram Bot Token。
-
 ## Setup
-
-> 安装配置
 
 ```bash
 git clone https://github.com/AliceLJY/telegram-cc-sdk.git
@@ -63,31 +51,24 @@ cd telegram-cc-sdk
 bun install  # or npm install
 
 cp .env.example .env
-# Edit .env with your tokens
-# 编辑 .env 填入你的 Bot Token 和配置
+# Edit .env with your bot token and config
 ```
 
 ### Environment Variables
-
-> 环境变量
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `TELEGRAM_BOT_TOKEN` | Yes | — | Bot token from BotFather |
 | `OWNER_TELEGRAM_ID` | Yes | — | Your Telegram user ID (owner only) |
-| `HTTPS_PROXY` | No | — | Proxy for Telegram API (blocked regions) |
+| `HTTPS_PROXY` | No | — | Proxy for Telegram API (for blocked regions) |
 | `CC_MODEL` | No | `claude-sonnet-4-6` | Claude model to use |
 | `CC_CWD` | No | `$HOME` | Working directory for CC |
 | `DEFAULT_VERBOSE_LEVEL` | No | `1` | Default progress verbosity (0/1/2) |
-| `ENABLE_GROUP_SHARED_CONTEXT` | No | `true` | Enable group chat context |
+| `ENABLE_GROUP_SHARED_CONTEXT` | No | `true` | Enable group chat shared context |
 | `GROUP_CONTEXT_MAX_MESSAGES` | No | `30` | Max context messages in group |
-| `GROUP_CONTEXT_MAX_TOKENS` | No | `3000` | Max context tokens in group |
-
-> `TELEGRAM_BOT_TOKEN` 和 `OWNER_TELEGRAM_ID` 必填，其余可选。代理用于 Telegram API 被墙的地区。
+| `GROUP_CONTEXT_MAX_TOKENS` | No | `3000` | Max context token budget in group |
 
 ## Usage
-
-> 使用方式
 
 ```bash
 bun bridge.js
@@ -95,9 +76,9 @@ bun bridge.js
 
 ### macOS LaunchAgent (recommended)
 
-> macOS 推荐用 LaunchAgent 守护进程，开机自启 + 崩溃自动重启。
+For auto-start on login with crash recovery, create `~/Library/LaunchAgents/com.telegram-cc-sdk.plist`:
 
-Create `~/Library/LaunchAgents/com.telegram-cc-sdk.plist`:
+> macOS 推荐 LaunchAgent 守护进程，开机自启 + 崩溃重启。
 
 ```xml
 <plist version="1.0">
@@ -121,86 +102,81 @@ Create `~/Library/LaunchAgents/com.telegram-cc-sdk.plist`:
 
 ### Commands
 
-> 命令列表
-
 | Command | Description |
 |---------|-------------|
-| `/new` | Reset session, start fresh / 重置会话 |
-| `/sessions` | List recent sessions, tap to restore / 列出历史会话 |
-| `/status` | Show SDK mode, model, cwd, session / 查看状态 |
-| `/verbose 0\|1\|2` | Set progress verbosity / 设置进度详细度 |
+| `/new` | Reset session, start fresh |
+| `/sessions` | List recent sessions, tap to restore |
+| `/status` | Show SDK mode, model, cwd, current session |
+| `/verbose 0\|1\|2` | Set progress verbosity level |
 
 ### Sending Files
 
-> 发送文件
+Use the Telegram paperclip button to send files with an optional caption:
 
-| Type | Support | Description |
-|------|---------|-------------|
-| Photos | ✅ | CC reads images (multimodal) / 图片识别 |
-| PDF / text / code | ✅ | CC reads file content / 文件处理 |
-| Voice | ✅ | CC processes audio / 语音处理 |
-| Video | ❌ | Send screenshot instead / 暂不支持 |
+| Type | Support | Handling |
+|------|---------|----------|
+| Photos | ✅ | CC reads images (multimodal) |
+| PDF / text / code | ✅ | CC reads file content |
+| Voice | ✅ | CC processes audio |
+| Video | ❌ | Send screenshot instead |
 
 ### Inline Keyboard Buttons
 
-> 快捷按钮
-
-**Session picker** — tap `/sessions`, get a list of buttons:
-
-> `/sessions` 弹出按钮列表，点一下恢复会话。
+**Session picker** — tap `/sessions` to get a button list. Tap any session to restore it:
 
 ```
 ┌─────────────────────────────────┐
-│ 03-03 14:07  帮我看看这个报错...  │
+│ 03-03 14:07  Fix the auth bug    │
 ├─────────────────────────────────┤
-│ 03-03 10:15  写一篇关于AI的...    │
+│ 03-03 10:15  Write API docs      │
 ├─────────────────────────────────┤
-│ 🆕 开新会话                      │
+│ 🆕 New session                   │
 └─────────────────────────────────┘
 ```
 
-**Smart quick replies** — when CC asks yes/no, buttons appear:
-
-> CC 问「要吗？」「继续吗？」时自动弹按钮。
+**Smart quick replies** — when CC asks a yes/no question, buttons appear automatically:
 
 ```
-CC: 要把这段代码重构成两个函数吗？
+CC: Should I refactor this into two functions?
 
         ┌──────┐  ┌──────┐
-        │  要  │  │ 不要 │
+        │  Yes │  │  No  │
         └──────┘  └──────┘
 ```
 
-## Key Improvements over telegram-cli-bridge
+Detected patterns: 要吗 / 好吗 / 是吗 / 对吗 / 可以吗 / 继续吗 / 确认吗 + numbered options (1. 2. 3.)
 
-> 相比旧版的改进
+## Key Improvements over task-api Bridge
 
 | Before (task-api) | After (Agent SDK) |
 |---|---|
-| Session in memory, lost on restart | SQLite persistence, survives restart |
-| Static "CC 正在处理..." | Real-time tool progress with icons |
-| task-api → Worker → CC (2 hops) | Agent SDK → CC (direct) |
+| Sessions in memory, lost on restart | SQLite persistence, survives restarts |
+| Static "Processing..." message | Real-time tool progress with icons |
+| Telegram → task-api → Worker → CC (2 hops) | Telegram → Agent SDK → CC (direct) |
 | Long-polling for result | Streaming via async iterator |
 | No concurrency control | Per-chat message queuing |
 
-> 会话持久化（SQLite）、实时进度（工具图标）、直连（去掉 task-api 中间层）、流式返回、并发控制。
-
 ## Ecosystem
 
-> 生态系统
+This bridge is part of a personal AI infrastructure. Each project handles one layer — from task execution to content publishing.
+
+> 个人 AI 基础设施的一部分。每个项目负责一层，组合起来是完整的远程 AI 工作流。
 
 | Project | Layer | What it does |
 |---------|-------|-------------|
 | **[telegram-cc-sdk](https://github.com/AliceLJY/telegram-cc-sdk)** | Frontend | *This project.* Telegram → CC via Agent SDK |
-| **[telegram-cli-bridge](https://github.com/AliceLJY/telegram-cli-bridge)** | Frontend | Telegram → Codex/Gemini via task-api |
+| **[telegram-cli-bridge](https://github.com/AliceLJY/telegram-cli-bridge)** | Frontend | Telegram → Codex / Gemini via task-api |
 | **[openclaw-worker](https://github.com/AliceLJY/openclaw-worker)** | Backend | Task queue + CC/Codex/Gemini Worker |
-| **[openclaw-cc-bridge](https://github.com/AliceLJY/openclaw-cc-bridge)** | Frontend | Discord → CC via OpenClaw Bot |
-| **[content-alchemy](https://github.com/AliceLJY/content-alchemy)** | Skill | Research → Analysis → Writing pipeline |
+| **[openclaw-cc-bridge](https://github.com/AliceLJY/openclaw-cc-bridge)** | Frontend | Discord → CC via OpenClaw Bot plugin |
+| **[content-alchemy](https://github.com/AliceLJY/content-alchemy)** | Skill | 5-stage content pipeline: Research → Writing |
 | **[content-publisher](https://github.com/AliceLJY/content-publisher)** | Skill | Image → Layout → WeChat Publishing |
+| **[digital-clone-skill](https://github.com/AliceLJY/digital-clone-skill)** | Skill | 6-stage digital clone from corpus data |
+
+> All projects are MIT licensed and built by one person with zero programming background — proof that AI tools can genuinely empower non-developers.
+>
+> 所有项目 MIT 开源，一个零编程基础的人独立搭建。
 
 ## Author
-
-> 作者
 
 **小试AI** — WeChat Public Account「我的AI小木屋」
 
