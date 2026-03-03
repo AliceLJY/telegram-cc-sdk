@@ -194,7 +194,7 @@ export function createAdapter(config = {}) {
       let usageMetadata = null;
 
       for await (const chunk of parseSSE(res.body)) {
-        const candidates = chunk.response?.candidates;
+        const candidates = chunk.response?.candidates || chunk.candidates;
         if (!candidates || !candidates.length) continue;
 
         const parts = candidates[0].content?.parts;
@@ -217,8 +217,8 @@ export function createAdapter(config = {}) {
           };
         }
 
-        if (chunk.response?.usageMetadata) {
-          usageMetadata = chunk.response.usageMetadata;
+        if (chunk.response?.usageMetadata || chunk.usageMetadata) {
+          usageMetadata = chunk.response?.usageMetadata || chunk.usageMetadata;
         }
       }
 
@@ -259,7 +259,6 @@ async function* parseSSE(body) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -280,6 +279,15 @@ async function* parseSSE(body) {
             // 忽略解析错误
           }
           dataLines = [];
+        }
+      }
+
+      // SSE chunk 内 data 行后无空行时也尝试解析
+      if (dataLines.length > 0) {
+        try {
+          yield JSON.parse(dataLines.join("\n"));
+        } catch {
+          // 可能还在缓冲中
         }
       }
     }
