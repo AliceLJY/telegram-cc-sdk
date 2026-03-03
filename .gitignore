@@ -1,7 +1,11 @@
 node_modules/
 .env
+.env.codex
 files/
 sessions.db
+sessions-codex.db
+sessions-codex.db-wal
+sessions-codex.db-shm
 sessions.db-wal
 sessions.db-shm
 *.log

@@ -3,7 +3,9 @@
 import { Database } from "bun:sqlite";
 import { join } from "path";
 
-const DB_PATH = join(import.meta.dir, "sessions.db");
+const DB_PATH = process.env.SESSIONS_DB
+  ? join(import.meta.dir, process.env.SESSIONS_DB)
+  : join(import.meta.dir, "sessions.db");
 const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 小时不活跃自动过期
 
 const db = new Database(DB_PATH);

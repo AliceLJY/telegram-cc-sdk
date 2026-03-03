@@ -40,7 +40,7 @@ export function createAdapter(config = {}) {
 
       const thread = sessionId
         ? sdk.resumeThread(sessionId)
-        : sdk.startThread({ workingDirectory: cwd });
+        : sdk.startThread({ workingDirectory: cwd, skipGitRepoCheck: true });
 
       // runStreamed 支持 signal 取消
       const turnOpts = abortSignal ? { signal: abortSignal } : {};
