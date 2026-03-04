@@ -186,10 +186,14 @@ Part of a personal AI infrastructure. Each project handles one layer.
 |---------|-------|-------------|
 | **[telegram-ai-bridge](https://github.com/AliceLJY/telegram-ai-bridge)** | Frontend | *This project.* Telegram → CC / Codex via SDK |
 | **[openclaw-worker](https://github.com/AliceLJY/openclaw-worker)** | Backend | Task queue + CC/Codex/Gemini Worker |
+| **[openclaw-content-alchemy](https://github.com/AliceLJY/openclaw-content-alchemy)** | Skill | Bot-native content pipeline (OpenClaw plugin) |
+| **[openclaw-cli-pipeline](https://github.com/AliceLJY/openclaw-cli-pipeline)** | CLI | Multi-turn CC orchestration CLI |
 | **[openclaw-cli-bridge](https://github.com/AliceLJY/openclaw-cli-bridge)** | Frontend | Discord → CC/Codex/Gemini via OpenClaw Bot plugin |
 | **[content-alchemy](https://github.com/AliceLJY/content-alchemy)** | Skill | 5-stage content pipeline: Research → Writing |
 | **[content-publisher](https://github.com/AliceLJY/content-publisher)** | Skill | Image → Layout → WeChat Publishing |
 | **[digital-clone-skill](https://github.com/AliceLJY/digital-clone-skill)** | Skill | 6-stage digital clone from corpus data |
+| **[local-memory](https://github.com/AliceLJY/local-memory)** | Utility | Local AI conversation search (LanceDB + Jina) |
+| **[cc-shell](https://github.com/AliceLJY/cc-shell)** | UI | Lightweight Claude Code chat UI |
 
 > All projects are MIT licensed and built by one person with zero programming background — proof that AI tools can genuinely empower non-developers.
 >
