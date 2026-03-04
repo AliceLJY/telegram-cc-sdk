@@ -64,7 +64,7 @@ If you need Gemini with **full CLI capabilities** (file access, command executio
 ```bash
 git clone https://github.com/AliceLJY/telegram-ai-bridge.git
 cd telegram-ai-bridge
-bun install  # or npm install
+bun install
 
 cp .env.example .env
 # Edit .env with your bot token and config

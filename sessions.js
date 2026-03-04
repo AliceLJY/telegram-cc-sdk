@@ -1,10 +1,10 @@
 // SQLite 会话持久化（bun:sqlite，零外部依赖）
 // 支持多后端：backend 字段区分 claude / codex
 import { Database } from "bun:sqlite";
-import { join } from "path";
+import { join, isAbsolute } from "path";
 
 const DB_PATH = process.env.SESSIONS_DB
-  ? join(import.meta.dir, process.env.SESSIONS_DB)
+  ? (isAbsolute(process.env.SESSIONS_DB) ? process.env.SESSIONS_DB : join(import.meta.dir, process.env.SESSIONS_DB))
   : join(import.meta.dir, "sessions.db");
 const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 小时不活跃自动过期
 

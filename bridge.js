@@ -15,6 +15,10 @@ delete process.env.CLAUDECODE;
 // ── 配置 ──
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OWNER_ID = Number(process.env.OWNER_TELEGRAM_ID);
+if (!Number.isInteger(OWNER_ID)) {
+  console.error("FATAL: OWNER_TELEGRAM_ID is missing or invalid. Set it in .env");
+  process.exit(1);
+}
 const PROXY = process.env.HTTPS_PROXY;
 const CC_CWD = process.env.CC_CWD || process.env.HOME;
 const DEFAULT_VERBOSE = Number(process.env.DEFAULT_VERBOSE_LEVEL || 1);
@@ -189,6 +193,9 @@ async function downloadFile(ctx, fileId, filename) {
     ? await fetch(url, { agent: new HttpsProxyAgent(PROXY) })
     : await fetch(url);
 
+  if (!resp.ok) {
+    throw new Error(`Download failed: ${resp.status} ${resp.statusText}`);
+  }
   const buffer = Buffer.from(await resp.arrayBuffer());
   const localPath = join(FILE_DIR, `${Date.now()}-${filename}`);
   writeFileSync(localPath, buffer);
@@ -266,7 +273,7 @@ async function submitAndWait(ctx, prompt) {
             text += `\n${i + 1}. *${opt.label}*`;
             if (opt.description) text += `\n   ${opt.description}`;
             // callback data 限 64 字节，用 ask:序号:简短标签
-            kb.text(`${i + 1}. ${opt.label}`, `ask:${opt.label.slice(0, 50)}`).row();
+            kb.text(`${i + 1}. ${opt.label}`, `ask:${i}:${opt.label.slice(0, 40)}`).row();
           }
           await ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb }).catch(() => {
             // Markdown 失败时 fallback 纯文本
@@ -422,7 +429,7 @@ bot.command("backend", async (ctx) => {
       const status = a ? "✅" : "❌ 未安装";
       return `  ${status} ${b}${mark}`;
     }).join("\n");
-    await ctx.reply(`当前后端: ${current}\n用法: /backend claude|codex\n\n可用后端:\n${list}`);
+    await ctx.reply(`当前后端: ${current}\n用法: /backend ${AVAILABLE_BACKENDS.join("|")}\n\n可用后端:\n${list}`);
     return;
   }
   if (!adapters[arg]) {
@@ -574,7 +581,8 @@ bot.callbackQuery("action:new", async (ctx) => {
 
 // ── 按钮回调：AskUserQuestion 选项 ──
 bot.callbackQuery(/^ask:/, async (ctx) => {
-  const label = ctx.callbackQuery.data.replace("ask:", "");
+  const raw = ctx.callbackQuery.data.replace("ask:", "");
+  const label = raw.includes(":") ? raw.slice(raw.indexOf(":") + 1) : raw;
   await ctx.answerCallbackQuery({ text: `选择: ${label}` });
   await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
   await submitAndWait(ctx, label);
