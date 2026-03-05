@@ -72,6 +72,9 @@ const groupContext = new Map(); // chatId -> [{ messageId, role, source, text, t
 const recentTriggered = new Map(); // `${chatId}:${messageId}` -> ts
 const processingChats = new Set(); // 正在处理的 chatId（并发控制）
 const verboseSettings = new Map(); // chatId -> verboseLevel
+const pendingPermissions = new Map(); // permId -> { resolve, cleanup, toolName, chatId, ... }
+const chatPermState = new Map(); // chatId -> { alwaysAllowed: Set, yolo: boolean }
+let permIdCounter = 0;
 
 // ── 工具函数（从旧 bridge 原样复制）──
 
@@ -219,6 +222,85 @@ function detectQuickReplies(text) {
   return null;
 }
 
+// ── Tool Approval（工具审批）──
+
+function getPermState(chatId) {
+  if (!chatPermState.has(chatId)) {
+    chatPermState.set(chatId, { alwaysAllowed: new Set(), yolo: false });
+  }
+  return chatPermState.get(chatId);
+}
+
+function formatToolInput(toolName, input) {
+  if (toolName === "Bash" && input.command) {
+    let text = input.description ? `${input.description}\n${input.command}` : input.command;
+    return text.slice(0, 300);
+  }
+  if (["Edit", "Write", "Read"].includes(toolName) && input.file_path) {
+    return input.file_path;
+  }
+  const json = JSON.stringify(input, null, 2);
+  return json.length > 300 ? json.slice(0, 300) + "..." : json;
+}
+
+function createPermissionHandler(ctx) {
+  const chatId = ctx.chat.id;
+
+  return async (toolName, input, sdkOptions) => {
+    const state = getPermState(chatId);
+
+    // YOLO mode: auto-allow everything
+    if (state.yolo) {
+      return { behavior: "allow", toolUseID: sdkOptions.toolUseID };
+    }
+
+    // Always-allowed tool: auto-allow
+    if (state.alwaysAllowed.has(toolName)) {
+      return {
+        behavior: "allow",
+        updatedPermissions: sdkOptions.suggestions || [],
+        toolUseID: sdkOptions.toolUseID,
+      };
+    }
+
+    // Send inline keyboard to Telegram
+    const permId = ++permIdCounter;
+    const display = formatToolInput(toolName, input);
+    const reason = sdkOptions.decisionReason ? `\n${sdkOptions.decisionReason}` : "";
+
+    const text = `🔒 *Tool approval needed*\n\nTool: *${toolName}*${reason}\n\`\`\`\n${display}\n\`\`\`\n\nChoose an action:`;
+    const kb = new InlineKeyboard()
+      .text("Allow", `perm:${permId}:allow`)
+      .text("Deny", `perm:${permId}:deny`).row()
+      .text(`Always "${toolName}"`, `perm:${permId}:always`)
+      .text("YOLO", `perm:${permId}:yolo`);
+
+    await ctx.api.sendMessage(chatId, text, {
+      parse_mode: "Markdown",
+      reply_markup: kb,
+    }).catch(() => {
+      ctx.api.sendMessage(chatId, text.replace(/\*/g, "").replace(/```/g, ""), { reply_markup: kb });
+    });
+
+    // Wait for user response (5 min timeout)
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        pendingPermissions.delete(permId);
+        resolve({ behavior: "deny", message: "审批超时（5分钟）", toolUseID: sdkOptions.toolUseID });
+      }, 5 * 60 * 1000);
+
+      pendingPermissions.set(permId, {
+        resolve,
+        cleanup: () => clearTimeout(timeout),
+        toolName,
+        chatId,
+        suggestions: sdkOptions.suggestions,
+        toolUseID: sdkOptions.toolUseID,
+      });
+    });
+  };
+}
+
 // ── 核心：提交 prompt 并实时流式返回结果（通过适配器）──
 async function submitAndWait(ctx, prompt) {
   const chatId = ctx.chat.id;
@@ -256,6 +338,11 @@ async function submitAndWait(ctx, prompt) {
 
     const modelOverride = getChatModel(chatId);
     const streamOverrides = modelOverride ? { model: modelOverride } : {};
+
+    // Tool approval: only for Claude backend
+    if (backendName === "claude") {
+      streamOverrides.requestPermission = createPermissionHandler(ctx);
+    }
 
     try {
       for await (const event of adapter.streamQuery(fullPrompt, sessionId, abortController.signal, streamOverrides)) {
@@ -380,6 +467,7 @@ bot.use((ctx, next) => {
 // ── /new 命令：重置会话 ──
 bot.command("new", async (ctx) => {
   deleteSession(ctx.chat.id);
+  chatPermState.delete(ctx.chat.id);
   const adapter = getAdapter(ctx.chat.id);
   await ctx.reply(`会话已重置，下条消息将开启新 ${adapter.label} 会话。`);
 });
@@ -594,6 +682,46 @@ bot.callbackQuery(/^reply:/, async (ctx) => {
   await ctx.answerCallbackQuery({ text: `发送: ${text}` });
   await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
   await submitAndWait(ctx, text);
+});
+
+// ── 按钮回调：Tool Approval ──
+bot.callbackQuery(/^perm:/, async (ctx) => {
+  const parts = ctx.callbackQuery.data.split(":");
+  const permId = Number(parts[1]);
+  const action = parts[2];
+  const pending = pendingPermissions.get(permId);
+
+  if (!pending) {
+    await ctx.answerCallbackQuery({ text: "已过期" });
+    return;
+  }
+
+  pendingPermissions.delete(permId);
+  pending.cleanup();
+
+  const state = getPermState(pending.chatId);
+
+  await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+
+  if (action === "allow") {
+    await ctx.answerCallbackQuery({ text: "Allowed" });
+    pending.resolve({ behavior: "allow", toolUseID: pending.toolUseID });
+  } else if (action === "deny") {
+    await ctx.answerCallbackQuery({ text: "Denied" });
+    pending.resolve({ behavior: "deny", message: "用户拒绝", toolUseID: pending.toolUseID });
+  } else if (action === "always") {
+    state.alwaysAllowed.add(pending.toolName);
+    await ctx.answerCallbackQuery({ text: `Always "${pending.toolName}"` });
+    pending.resolve({
+      behavior: "allow",
+      updatedPermissions: pending.suggestions || [],
+      toolUseID: pending.toolUseID,
+    });
+  } else if (action === "yolo") {
+    state.yolo = true;
+    await ctx.answerCallbackQuery({ text: "YOLO mode ON" });
+    pending.resolve({ behavior: "allow", toolUseID: pending.toolUseID });
+  }
 });
 
 // ── 处理图片 ──

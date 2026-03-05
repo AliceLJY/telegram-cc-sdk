@@ -24,13 +24,21 @@ export function createAdapter(config = {}) {
     },
 
     async *streamQuery(prompt, sessionId, abortSignal, overrides = {}) {
-      const model = (overrides.model && overrides.model !== "__default__") ? overrides.model : defaultModel;
+      const { requestPermission, ...restOverrides } = overrides;
+      const model = (restOverrides.model && restOverrides.model !== "__default__") ? restOverrides.model : defaultModel;
       const options = {
         model,
         permissionMode: permMode,
         ...(permMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
         cwd,
       };
+
+      // Tool approval: forward permission requests to Telegram
+      if (requestPermission && permMode !== "bypassPermissions") {
+        options.canUseTool = async (toolName, input, sdkOptions) => {
+          return await requestPermission(toolName, input, sdkOptions);
+        };
+      }
 
       if (sessionId) {
         options.resume = sessionId;
