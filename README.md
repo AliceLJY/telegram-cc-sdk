@@ -6,6 +6,13 @@ Three independent Telegram bots for three AI backends: Claude Code (Agent SDK), 
 
 Each bot runs its own `bridge.js` process with a dedicated `.env` file, bot token, and SQLite database. One crashes, the others keep working.
 
+## Recommended Setup
+
+Use this bridge as the primary path for **Claude Code** and **Codex**.
+For **Gemini**, the recommended production setup is **[telegram-cli-bridge](https://github.com/AliceLJY/telegram-cli-bridge)**, because Gemini's Code Assist API here is chat-only and does not expose full CLI capabilities.
+
+> 推荐用法：**Claude Code / Codex** 优先用本仓库；**Gemini** 优先用 [telegram-cli-bridge](https://github.com/AliceLJY/telegram-cli-bridge)，因为这里的 Gemini 只是 Code Assist 对话接口，不是完整 CLI。
+
 ## Architecture
 
 ```
