@@ -29,7 +29,7 @@
 | 后端 | 本仓实现方式 | Session 来源 | 本地工具 / 文件能力 |
 |------|--------------|--------------|---------------------|
 | Claude | 通过 [`adapters/claude.js`](adapters/claude.js) 走 Agent SDK | `~/.claude/projects/` | 有，通过本地 Claude Code 工具能力 |
-| Codex | 通过 [`adapters/codex.js`](adapters/codex.js) 走 Codex SDK | `~/.codex/sessions/` | 有，且能恢复本地 Codex session |
+| Codex | 通过 [`adapters/codex.js`](adapters/codex.js) 走 Codex SDK | `~/.codex/sessions/` | 有，但 `/sessions` 默认只显示当前 chat 自己可恢复的会话 |
 | Gemini | 通过 [`adapters/gemini.js`](adapters/gemini.js) 走 Code Assist API | 会话在内存里，鉴权依赖 `~/.gemini/oauth_creds.json` | 没有与本地 CLI 等价的文件或命令控制能力 |
 
 直接结论：
@@ -140,8 +140,9 @@ bun bridge.js
 | 命令 | 说明 |
 |------|------|
 | `/new` | 重置当前聊天 session |
-| `/sessions` | 列出最近 session |
-| `/resume <session-id>` | 把 Telegram 重新绑定到已有 session |
+| `/sessions` | 列出当前 chat 自己可恢复的 session |
+| `/sessions all` | 同时查看当前 chat 会话和外部本机会话（外部仅展示，不可直接恢复） |
+| `/resume <session-id>` | 把 Telegram 重新绑定到当前 chat 自己的已有 session |
 | `/status` | 显示后端、模型、cwd 和当前 session |
 | `/verbose 0\|1\|2` | 设置进度输出等级 |
 

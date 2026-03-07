@@ -29,7 +29,7 @@ The three backends do not expose the same capability surface:
 | Backend | Implementation in this repo | Session source | Local tool / file capability |
 |---------|-----------------------------|----------------|------------------------------|
 | Claude | Agent SDK via [`adapters/claude.js`](adapters/claude.js) | `~/.claude/projects/` | Yes, through the local Claude Code tool model |
-| Codex | Codex SDK via [`adapters/codex.js`](adapters/codex.js) | `~/.codex/sessions/` | Yes, with resumable local Codex sessions |
+| Codex | Codex SDK via [`adapters/codex.js`](adapters/codex.js) | `~/.codex/sessions/` | Yes, but `/sessions` only shows this chat's own resumable sessions by default |
 | Gemini | Code Assist API via [`adapters/gemini.js`](adapters/gemini.js) | In-memory API session plus `~/.gemini/oauth_creds.json` auth | No equivalent local CLI file or command control in this repo |
 
 Important consequence:
@@ -140,8 +140,9 @@ If you run this in Docker, mount the provider-specific credential directories th
 | Command | Description |
 |---------|-------------|
 | `/new` | Reset the current chat session |
-| `/sessions` | List recent sessions |
-| `/resume <session-id>` | Bind Telegram to an existing session |
+| `/sessions` | List resumable sessions created by the current chat |
+| `/sessions all` | Show current-chat sessions plus external local sessions as non-resumable references |
+| `/resume <session-id>` | Rebind Telegram to an owned session from the current chat |
 | `/status` | Show backend, model, cwd, and session |
 | `/verbose 0\|1\|2` | Set progress verbosity |
 

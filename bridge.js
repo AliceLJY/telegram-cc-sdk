@@ -5,7 +5,18 @@ import { Bot, InlineKeyboard } from "grammy";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { mkdirSync, writeFileSync, readdirSync, statSync, unlinkSync } from "fs";
 import { basename, join } from "path";
-import { getSession, setSession, deleteSession, recentSessions, getChatBackend, setChatBackend, getHistorySession, getChatModel, setChatModel, deleteChatModel } from "./sessions.js";
+import {
+  getSession,
+  setSession,
+  deleteSession,
+  recentSessions,
+  getChatBackend,
+  setChatBackend,
+  getChatModel,
+  setChatModel,
+  deleteChatModel,
+  sessionBelongsToChat,
+} from "./sessions.js";
 import { createProgressTracker } from "./progress.js";
 import { createBackend, AVAILABLE_BACKENDS } from "./adapters/interface.js";
 
@@ -250,6 +261,49 @@ function sortSessionsForDisplay(sessions, current, currentProject) {
   });
 }
 
+async function enrichSessionMeta(adapter, session, fallbackBackend) {
+  const sessionId = session.session_id || session.sessionId;
+  const backend = session.backend || fallbackBackend;
+  const base = { ...session, session_id: sessionId, backend };
+  if (!adapter?.resolveSession || !sessionId) {
+    return base;
+  }
+  const resolved = await adapter.resolveSession(sessionId);
+  return resolved ? { ...base, ...resolved, session_id: sessionId, backend } : base;
+}
+
+async function getOwnedSessionsForChat(chatId, backendName, adapter, limit = 10) {
+  const owned = recentSessions(limit, {
+    chatId,
+    backend: backendName,
+    ownership: "owned",
+  });
+  const enriched = [];
+  for (const session of owned) {
+    enriched.push(await enrichSessionMeta(adapter, session, backendName));
+  }
+  return enriched;
+}
+
+async function getExternalSessionsForChat(chatId, backendName, adapter, limit = 10) {
+  if (!adapter?.listSessions) {
+    return [];
+  }
+
+  const scanned = await adapter.listSessions(limit * 3);
+  const external = [];
+
+  for (const session of scanned) {
+    const sessionId = session.session_id || session.sessionId;
+    if (!sessionId) continue;
+    if (sessionBelongsToChat(chatId, sessionId, backendName, "owned")) continue;
+    external.push(await enrichSessionMeta(adapter, session, backendName));
+    if (external.length >= limit) break;
+  }
+
+  return external;
+}
+
 // ── 文件下载 ──
 const FILE_DIR = join(import.meta.dir, "files");
 mkdirSync(FILE_DIR, { recursive: true });
@@ -462,7 +516,7 @@ async function submitAndWait(ctx, prompt) {
     // 存 session
     if (capturedSessionId) {
       const displayName = prompt.slice(0, 30);
-      setSession(chatId, capturedSessionId, displayName, backendName);
+      setSession(chatId, capturedSessionId, displayName, backendName, "owned");
     }
 
     // 删进度消息
@@ -550,12 +604,31 @@ bot.command("resume", async (ctx) => {
   }
 
   const backend = getBackendName(ctx.chat.id);
-  setSession(ctx.chat.id, sessionId, "", backend);
   const adapter = getAdapter(ctx.chat.id);
   const adapterInfo = adapter.statusInfo(getChatModel(ctx.chat.id));
   const sessionMeta = adapter.resolveSession ? await adapter.resolveSession(sessionId) : null;
   const project = getSessionProjectLabel(sessionMeta, adapterInfo.cwd);
   const source = getSessionSourceLabel(sessionMeta);
+
+  if (!sessionBelongsToChat(ctx.chat.id, sessionId, backend, "owned")) {
+    const resumeCmd = buildResumeHint(backend, sessionId, sessionMeta?.cwd || adapterInfo.cwd);
+    await ctx.reply(
+      `${adapter.icon} 已拒绝绑定外部会话 \`${sessionId}\`（${backend}）\n` +
+      `${project ? `项目: ${project}${source ? ` ${source}` : ""}\n` : ""}` +
+      `当前 TG 实例默认只允许恢复本 chat 自己创建的会话。` +
+      `${resumeCmd ? `\n终端如需单独查看，可用: \`${resumeCmd}\`` : ""}`,
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+
+  setSession(
+    ctx.chat.id,
+    sessionId,
+    sessionMeta?.display_name || "",
+    backend,
+    "owned",
+  );
   await ctx.reply(
     `${adapter.icon} 已绑定会话 \`${sessionId}\`（${backend}）\n` +
     `${project ? `项目: ${project}${source ? ` ${source}` : ""}\n` : ""}` +
@@ -564,27 +637,36 @@ bot.command("resume", async (ctx) => {
   );
 });
 
-// ── /sessions 命令：优先从本地 session 文件扫描，兜底 SQLite 历史 ──
+// ── /sessions 命令：默认只显示当前 chat 自己的会话，`all` 才展示外部扫描结果 ──
 bot.command("sessions", async (ctx) => {
   try {
     const adapter = getAdapter(ctx.chat.id);
     const backendName = getBackendName(ctx.chat.id);
     const adapterInfo = adapter.statusInfo(getChatModel(ctx.chat.id));
-
-    // 优先用 adapter 扫描本地 session 文件（如 CC transcript / Codex sessions）
-    let sessions = adapter.listSessions ? await adapter.listSessions(10) : null;
-    // 兜底：SQLite 历史
-    if (!sessions || !sessions.length) {
-      sessions = recentSessions(10, { chatId: ctx.chat.id, backend: backendName });
-    }
-
-    if (!sessions.length) {
-      await ctx.reply("没有找到历史会话。");
-      return;
-    }
+    const mode = ctx.match?.trim().toLowerCase();
+    const showAll = mode === "all";
+    const ownedSessions = await getOwnedSessionsForChat(
+      ctx.chat.id,
+      backendName,
+      adapter,
+      10,
+    );
     const current = getSession(ctx.chat.id);
     const currentProject = adapterInfo.cwd ? basename(adapterInfo.cwd) : "";
-    const sortedSessions = sortSessionsForDisplay(sessions, current, currentProject);
+    const sortedSessions = sortSessionsForDisplay(
+      ownedSessions,
+      current,
+      currentProject,
+    );
+
+    if (!sortedSessions.length && !showAll) {
+      await ctx.reply(
+        "当前 chat 没有可安全恢复的历史会话。\n用 `/sessions all` 可以查看本机外部会话，但它们不会直接出现在恢复按钮里。",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
     const kb = new InlineKeyboard();
     for (const s of sortedSessions) {
       const backend = s.backend || backendName;
@@ -592,7 +674,39 @@ bot.command("sessions", async (ctx) => {
       kb.text(buildSessionButtonLabel(s, backend, isCurrent), `resume:${s.session_id}:${backend}`).row();
     }
     kb.text("🆕 开新会话", "action:new").row();
-    await ctx.reply("选择要恢复的会话：", { reply_markup: kb });
+
+    if (!showAll) {
+      await ctx.reply("选择要恢复的会话（仅当前 chat 自己的会话）：", {
+        reply_markup: kb,
+      });
+      return;
+    }
+
+    const externalSessions = await getExternalSessionsForChat(
+      ctx.chat.id,
+      backendName,
+      adapter,
+      10,
+    );
+    const externalLines = externalSessions.map(
+      (session) => `- ${buildSessionButtonLabel(session, session.backend || backendName, false)}`,
+    );
+
+    const sections = [];
+    if (sortedSessions.length) {
+      sections.push("可恢复会话：上方按钮仅包含当前 chat 自己创建的会话。");
+    } else {
+      sections.push("当前 chat 还没有可恢复的自有会话。");
+    }
+    if (externalLines.length) {
+      sections.push(
+        "外部本机会话（仅展示，不可直接恢复）：\n" + externalLines.join("\n"),
+      );
+    } else {
+      sections.push("没有额外扫描到外部本机会话。");
+    }
+
+    await ctx.reply(sections.join("\n\n"), { reply_markup: kb });
   } catch (e) {
     await ctx.reply(`查询失败: ${e.message}`);
   }
@@ -750,12 +864,27 @@ bot.callbackQuery(/^resume:/, async (ctx) => {
     sessionId = data;
     backend = "claude";
   }
-  setSession(ctx.chat.id, sessionId, "", backend);
+
+  if (!sessionBelongsToChat(ctx.chat.id, sessionId, backend, "owned")) {
+    await ctx.answerCallbackQuery({ text: "外部会话已禁用" });
+    await ctx.editMessageText(
+      `这个会话不属于当前 TG chat，已禁止直接恢复。\n如需查看，请在终端单独接续。`,
+    ).catch(() => {});
+    return;
+  }
+
   setChatBackend(ctx.chat.id, backend);
   const adapter = adapters[backend];
   const icon = adapter?.icon || "🟣";
   const adapterInfo = adapter ? adapter.statusInfo(getChatModel(ctx.chat.id)) : { cwd: CC_CWD };
   const sessionMeta = adapter?.resolveSession ? await adapter.resolveSession(sessionId) : null;
+  setSession(
+    ctx.chat.id,
+    sessionId,
+    sessionMeta?.display_name || "",
+    backend,
+    "owned",
+  );
   const project = getSessionProjectLabel(sessionMeta, adapterInfo.cwd);
   const source = getSessionSourceLabel(sessionMeta);
   await ctx.answerCallbackQuery({ text: "已恢复 ✓" });
