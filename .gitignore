@@ -28,3 +28,6 @@ promo-post.md
 
 # CC worktree（bg session 隔离用，不入仓）
 .claude/
+# 配置备份（含 bot token，2026-09-02 起）：config-*.json 的规则匹配不到 .json.bak-*，此前会以 untracked 露在 git status 里
+config.json.bak-*
+config-*.json.bak-*
