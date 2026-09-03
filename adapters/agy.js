@@ -73,18 +73,22 @@ export function createAdapter(config = {}) {
       // ESM module cache across test files, and runtime callers may inject a
       // canary binary without depending on import order.
       bin: config.bin || process.env.AGY_BIN || "/opt/homebrew/bin/agy",
-      defaultModel: process.env.AGY_MODEL || "gemini-3.1-pro-high",
+      defaultModel: process.env.AGY_MODEL || "gemini-3.8-flash-high",
       defaultEffort: "high",
       modeLabel: "Antigravity CLI (Gemini)",
 
       // 只列 Gemini 系。Antigravity 里也能选 claude-*，但这个 bot 的全部意义就是提供一个
       // 非 Claude 的引擎；把同源模型摆进菜单只会让人误选成回音。
+      //
+      // 菜单以 `agy models` 的实时输出为准——CLI 会下线旧模型，菜单里留着的就成了死选项：
+      // 2026-09-03 校对时 gemini-3.5-flash-high 已从 CLI 消失，选中即被拒。改这里之前先跑一次
+      // `agy models` 对一遍，别照着记忆写。
       models: [
+        { id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash (High)" },
+        { id: "gemini-3.8-flash-medium", label: "Gemini 3.8 Flash (Medium)" },
+        { id: "gemini-3.8-flash-low", label: "Gemini 3.8 Flash (Low)" },
         { id: "gemini-3.1-pro-high", label: "Gemini 3.1 Pro (High)" },
         { id: "gemini-3.1-pro-low", label: "Gemini 3.1 Pro (Low)" },
-        { id: "gemini-3.6-flash-high", label: "Gemini 3.6 Flash (High)" },
-        { id: "gemini-3.6-flash-medium", label: "Gemini 3.6 Flash (Medium)" },
-        { id: "gemini-3.5-flash-high", label: "Gemini 3.5 Flash (High)" },
       ],
 
       // agy 支持逐次指定 --effort（low|medium|high），所以给出真实档位

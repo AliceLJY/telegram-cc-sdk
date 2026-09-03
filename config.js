@@ -298,7 +298,7 @@ export function createDefaultConfig() {
         enabled: false,
         telegramBotToken: "",
         sessionsDb: "sessions-agy.db",
-        model: "gemini-3.1-pro-high",
+        model: "gemini-3.8-flash-high",
         defaultEffort: "high",
       },
       kimi: {
