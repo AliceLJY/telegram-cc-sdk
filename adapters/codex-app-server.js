@@ -178,7 +178,7 @@ export async function* streamAppServerEvents({
       clientInfo: {
         name: "telegram-ai-bridge",
         title: "Telegram AI Bridge",
-        version: "5.1.0",
+        version: "5.1.1",
       },
       capabilities: {},
     });

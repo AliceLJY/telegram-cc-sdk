@@ -9,7 +9,7 @@
 Those four are the adapters bundled and tested here, not a closed provider list. Telegram routing, sessions, streaming, A2A-TG, and safety gates sit behind a small adapter boundary, so another agent with a callable CLI or SDK can be added without rebuilding the orchestration layer.
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-5.1.0-green.svg)](https://github.com/AliceLJY/telegram-ai-bridge/releases)
+[![Version](https://img.shields.io/badge/version-5.1.1-green.svg)](https://github.com/AliceLJY/telegram-ai-bridge/releases)
 [![Bun](https://img.shields.io/badge/Runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 [![Telegram](https://img.shields.io/badge/Interface-Telegram-26A5E4?logo=telegram)](https://telegram.org/)
 [![A2A-TG spec](https://img.shields.io/badge/A2A--TG-v1-8a2be2)](docs/a2a-tg-v1.md)
@@ -228,6 +228,7 @@ Sessions are sticky: messages continue the current session until you explicitly 
 | `/peek <id>` | Read-only preview a session |
 | `/resume <#\|id>` | Resume by sequence number or session ID |
 | `/model` | Pick a model for the current bot |
+| `/effort [level\|default]` | Show or set reasoning effort for the current bot (levels come from the backend adapter; `default` restores the configured default) |
 | `/status` | Show backend, model, cwd, and session |
 | `/discuss status\|on\|off` | Control opt-in Discuss mode for allowlisted group chats |
 | `/dir` | Switch working directory |
@@ -533,6 +534,16 @@ bun run check-configs config.example.json config-2.json
 ```
 
 See the LaunchAgent section below for plist setup.
+
+**5. (Optional) Mark one instance as the primary bot** — `/sessions` and `/resume` are only exposed on the instance started with `BRIDGE_OWNER=true` (`install-launch-agent.sh --owner`); the other bots hide them and point the user to the primary bot instead. Tell them where to point with `shared.historyBots` (backend → primary bot username):
+
+```json
+"shared": {
+  "historyBots": { "claude": "@your_claude_bot", "kimi": "@your_kimi_bot" }
+}
+```
+
+Leave it out and secondary bots just say "another bot".
 
 > **What's shared vs isolated:**
 >

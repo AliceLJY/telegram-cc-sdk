@@ -1,6 +1,6 @@
 {
   "name": "telegram-ai-bridge",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "private": true,
   "description": "Self-hosted Telegram bridge for Claude Code, Codex, Agy, and Kimi with the A2A-TG envelope protocol for safe multi-agent collaboration in group chats.",
   "type": "module",

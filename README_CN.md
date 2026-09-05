@@ -9,7 +9,7 @@
 这四个是当前内置并端到端验证的 adapter，不是封闭的 provider 名单。Telegram 路由、session、流式、A2A-TG 和安全闸都收在一个很小的 adapter 边界之外；其他有可调用 CLI 或 SDK 的 agent，可以沿同一边界接入，不必重写整套编排。
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-5.1.0-green.svg)](https://github.com/AliceLJY/telegram-ai-bridge/releases)
+[![Version](https://img.shields.io/badge/version-5.1.1-green.svg)](https://github.com/AliceLJY/telegram-ai-bridge/releases)
 [![Bun](https://img.shields.io/badge/Runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 [![Telegram](https://img.shields.io/badge/Interface-Telegram-26A5E4?logo=telegram)](https://telegram.org/)
 [![A2A-TG spec](https://img.shields.io/badge/A2A--TG-v1-8a2be2)](docs/a2a-tg-v1.md)
@@ -223,6 +223,7 @@ Codex 继续默认使用原有 `sdk` 传输，`app-server` 需要主动选择。
 | `/peek <id>` | 只读预览某个会话 |
 | `/resume <序号\|id>` | 按序号或 ID 恢复会话 |
 | `/model` | 切换当前 bot 的模型 |
+| `/effort [级别\|default]` | 查看或切换当前 bot 的思考深度（级别由后端 adapter 提供；`default` 恢复配置默认值） |
 | `/status` | 查看后端、模型、工作目录和会话 |
 | `/discuss status\|on\|off` | 控制 allowlist 群聊里的 Discuss 模式 |
 | `/dir` | 切换工作目录 |
@@ -528,6 +529,16 @@ bun run check-configs config.example.json config-2.json
 ```
 
 详见下方 LaunchAgent 部分。
+
+**5.（可选）指定主力 bot** —— `/sessions` 和 `/resume` 只在带 `BRIDGE_OWNER=true` 启动的实例（`install-launch-agent.sh --owner`）上开放，其他 bot 会隐藏这两个命令并把用户指到主力 bot。用 `shared.historyBots`（后端 → 主力 bot 用户名）告诉它们该指到哪：
+
+```json
+"shared": {
+  "historyBots": { "claude": "@your_claude_bot", "kimi": "@your_kimi_bot" }
+}
+```
+
+不配置时副 bot 只会说「另一个 bot」。
 
 > **哪些共享，哪些隔离：**
 >

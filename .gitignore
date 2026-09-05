@@ -21,6 +21,7 @@ shared-context.json
 plan.md
 plan-*.md
 research.md
+research-*.md
 *.db
 *.db-shm
 *.db-wal

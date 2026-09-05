@@ -66,6 +66,16 @@ function isPositiveInteger(value) {
   return parsed != null && parsed > 0;
 }
 
+// shared.historyBots：{ backend: "@bot_username" }，只保留非空字符串，键名统一小写
+function normalizeHistoryBots(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result = {};
+  for (const [backend, name] of Object.entries(value)) {
+    if (isNonEmptyString(name)) result[String(backend).trim().toLowerCase()] = name.trim();
+  }
+  return result;
+}
+
 function parseChatIdList(value) {
   if (value == null) return [];
   if (Array.isArray(value)) return value;
@@ -266,6 +276,8 @@ export function createDefaultConfig() {
       cronEnabled: true,
       cronMaxJobs: 10,
       cronDefaultTimeoutMs: 600000,
+      // 副 bot 的 /sessions /resume 指路文案：backend → 主力 bot 用户名，如 { "claude": "@your_claude_bot" }
+      historyBots: {},
     },
     backends: {
       claude: {
@@ -464,6 +476,8 @@ function buildEnvFromConfig(config, backend, configPath) {
     CRON_ENABLED: String(shared.cronEnabled ?? true),
     CRON_MAX_JOBS: String(shared.cronMaxJobs ?? 10),
     CRON_DEFAULT_TIMEOUT_MS: String(shared.cronDefaultTimeoutMs ?? 600000),
+    // 副 bot 指路文案（JSON：backend → 主力 bot 用户名）；为空时 bridge 只说「另一个 bot」
+    HISTORY_BOTS: JSON.stringify(normalizeHistoryBots(shared.historyBots)),
   };
 
   if (selectedBackend === "claude") {
@@ -528,6 +542,13 @@ export function validateConfig(config, options = {}) {
     pushIssue(issues, "shared.discussChatIds", "must be an array of Telegram chat IDs.");
   } else if (!discussChatIds.every(looksLikeTelegramChatId)) {
     pushIssue(issues, "shared.discussChatIds", "must contain only numeric Telegram chat IDs.");
+  }
+  if (shared.historyBots != null) {
+    if (typeof shared.historyBots !== "object" || Array.isArray(shared.historyBots)) {
+      pushIssue(issues, "shared.historyBots", "must be an object mapping backend name to bot username.");
+    } else if (!Object.values(shared.historyBots).every((name) => typeof name === "string")) {
+      pushIssue(issues, "shared.historyBots", "must map backend names to bot username strings.");
+    }
   }
   validatePositiveIntegerField(issues, "shared.groupContextMaxMessages", shared.groupContextMaxMessages);
   validatePositiveIntegerField(issues, "shared.groupContextMaxTokens", shared.groupContextMaxTokens);

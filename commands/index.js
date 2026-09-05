@@ -8,6 +8,7 @@ export function registerCommands(bot, deps) {
     DEFAULT_EFFORT,
     DEFAULT_VERBOSE,
     DISCUSS_CHAT_IDS,
+    HISTORY_BOTS,
     InlineKeyboard,
     a2aBus,
     adapters,
@@ -83,13 +84,17 @@ export function registerCommands(bot, deps) {
   // 副 bot 不暴露 /sessions /resume —— 强制走主力 bot 看完整聊天记录
   // owner 通过 plist env BRIDGE_OWNER=true 标记
   const IS_OWNER = process.env.BRIDGE_OWNER === "true";
-  // 2026-07-30 订正：原文案两处错——① 指路去 @ClCObest_bot（=mccode3），但它自己就是副 bot、
-  // 同样没有 /sessions ② 说"Codex 历史去 mcodex1"，而 mcodex1 自当日起跑的是 kimi。
-  // 现只列真正带 BRIDGE_OWNER=true 的实例（实测：仅 mini 的 mccode1 与 mcodex1）。
+  // 指路文案从 config.shared.historyBots 读（backend → 主力 bot 用户名），源码里不写死任何实例名；
+  // 没配置时只说「另一个 bot」。只该填真正带 BRIDGE_OWNER=true 的实例——副 bot 自己也没有 /sessions，指过去没用。
+  const HISTORY_BOT_LABELS = { claude: "Claude", codex: "Codex", gemini: "Gemini", agy: "Agy", kimi: "Kimi" };
+  const configuredHistoryBots = Object.entries(HISTORY_BOTS || {})
+    .filter(([, name]) => typeof name === "string" && name.trim());
+  const historyBotLines = configuredHistoryBots.length > 0
+    ? configuredHistoryBots.map(([backend, name]) => `· ${HISTORY_BOT_LABELS[backend] || backend} 历史 → ${name.trim()}`)
+    : ["· 历史会话 → 另一个 bot（主力 bot；可在 config.shared.historyBots 里填它的用户名）"];
   const NON_OWNER_SESSIONS_HINT =
     "📋 /sessions 和 /resume 仅在主力 bot 启用。\n" +
-    "· Claude 历史 → @mccode1_bot\n" +
-    "· Kimi 历史 → @mcodex1_bot（原 codex 槽位，07-30 起跑 kimi）\n" +
+    historyBotLines.join("\n") + "\n" +
     "· agy 暂无会话浏览（adapter 未实现 listSessions）";
 
   // 取消某个 chat 所有挂起的工具审批：cleanup timeout + 标记 rejected + resolve deny + 删除。

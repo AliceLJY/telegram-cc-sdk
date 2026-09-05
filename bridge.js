@@ -105,7 +105,7 @@ if (typeof Bun !== "undefined" && PROXY) {
 // [mini-patch] codex picker 过滤 source=exec 的 session。
 // bridge 用 SDK 创建的 session 默认被 picker 隐身，每次 save 后只把本次 thread 改成 cli。
 // 不做全库 UPDATE，避免把其他工具创建的 exec thread 一并改写。
-// 2026-05-29 教训：错误地加 BRIDGE_OWNER gate 后 mcodex2 thread/resume 失败 exit 1。
+// 2026-05-29 教训：错误地加 BRIDGE_OWNER gate 后，非 owner 的 codex 实例 thread/resume 失败 exit 1。
 // 只 gate claude bot（claude 不该跑这个 SQL），不区分 owner。
 function patchCodexStateDb(threadId) {
   if ((process.env.DEFAULT_BACKEND || "claude") !== "codex") return;
@@ -140,6 +140,15 @@ const DISCUSS_CHAT_IDS = new Set(
     .map((value) => value.trim())
     .filter(Boolean)
 );
+// 副 bot 的 /sessions /resume 指路文案：backend → 主力 bot 用户名，来自 config.shared.historyBots（start.js 注入为 JSON）
+const HISTORY_BOTS = (() => {
+  try {
+    const parsed = JSON.parse(process.env.HISTORY_BOTS || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+})();
 const GROUP_CONTEXT_MAX_MESSAGES = Number(process.env.GROUP_CONTEXT_MAX_MESSAGES || 30);
 const GROUP_CONTEXT_MAX_TOKENS = Number(process.env.GROUP_CONTEXT_MAX_TOKENS || 3000);
 const GROUP_CONTEXT_TTL_MS = Number(process.env.GROUP_CONTEXT_TTL_MS || 20 * 60 * 1000);
@@ -1609,9 +1618,8 @@ bot.use((ctx, next) => {
   return next();
 });
 
-// entrypoint-patch 只 claude owner 跑（避免 9 个 bridge 同扫 5000+ jsonl）
-// owner 通过 plist env BRIDGE_OWNER=true 标记；3 个 owner: MacBook bridge + mini mccode1 + mini mcodex1
-// 见 ~/.claude/skills/bot-doctor/learnings.md
+// entrypoint-patch 只 claude owner 跑（避免多个 bridge 实例同扫同一批 jsonl）
+// owner 通过 plist env BRIDGE_OWNER=true 标记；多实例部署时只给主力实例标 owner，副 bot 不跑这段
 if (DEFAULT_BACKEND === "claude" && process.env.BRIDGE_OWNER === "true") {
   startEntrypointPatcher();
 }
@@ -1623,6 +1631,7 @@ registerCommands(bot, {
   DEFAULT_EFFORT,
   DEFAULT_VERBOSE,
   DISCUSS_CHAT_IDS,
+  HISTORY_BOTS,
   InlineKeyboard,
   OWNER_ID,
   a2aBus,

@@ -38,7 +38,8 @@
     "resetOnIdleMs": 0,
     "cronEnabled": true,
     "cronMaxJobs": 10,
-    "cronDefaultTimeoutMs": 600000
+    "cronDefaultTimeoutMs": 600000,
+    "historyBots": { "claude": "@your_claude_bot", "kimi": "@your_kimi_bot" }
   },
   "backends": {
     "claude": {

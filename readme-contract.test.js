@@ -11,10 +11,10 @@ const launchAgentInstaller = readFileSync(new URL("./scripts/install-launch-agen
 
 describe("public documentation contract", () => {
   test("release badge and install path match the repository", () => {
-    expect(packageManifest.version).toBe("5.1.0");
+    expect(packageManifest.version).toBe("5.1.1");
     expect(packageManifest.private).toBe(true);
-    expect(readme).toContain("version-5.1.0");
-    expect(readmeCn).toContain("version-5.1.0");
+    expect(readme).toContain("version-5.1.1");
+    expect(readmeCn).toContain("version-5.1.1");
     expect(readme).toContain("historical v3.1.0 snapshot");
     expect(readmeCn).toContain("历史 v3.1.0 快照");
     expect(readme).not.toContain("v4.1");
