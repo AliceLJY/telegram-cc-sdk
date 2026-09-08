@@ -56,7 +56,7 @@
     <rect x="682" y="424" width="90" height="44" rx="14" fill="#1E293B"/>
     <text x="704" y="452" fill="#A7F3D0" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">SQLite</text>
 
-    <text x="552" y="508" fill="#CBD5E1" font-family="Arial, Helvetica, sans-serif" font-size="18">One bot • one backend • one mental model</text>
+    <text x="552" y="508" fill="#CBD5E1" font-family="Arial, Helvetica, sans-serif" font-size="15">One bot • one backend • one mental model</text>
   </g>
 
   <g>
@@ -77,6 +77,6 @@
     <text x="968" y="438" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">Codex</text>
 
     <rect x="898" y="474" width="194" height="54" rx="18" fill="#2563EB"/>
-    <text x="962" y="508" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">Gemini</text>
+    <text x="962" y="508" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">Kimi · Agy</text>
   </g>
 </svg>
